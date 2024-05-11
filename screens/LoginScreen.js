@@ -2,21 +2,33 @@ import React, { useState } from 'react';
 import { View, TextInput, Button, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import swal from 'sweetalert';
 
 export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
+    // Check for empty fields
+    if (!username.trim() || !password.trim()) {
+      swal('Please fill in all fields.', { icon: 'error' });
+      return;
+    }
+
     try {
       const response = await axios.post('http://localhost:3000/login', { username, password });
       const { token } = response.data;
+      console.log('Login token:', token);
 
       await AsyncStorage.setItem('token', token);
       navigation.navigate('Home');
     } catch (error) {
       console.error('Login error:', error);
-      alert('Invalid credentials');
+      if (error.response && error.response.status === 401) {
+        swal('Invalid credentials', { icon: 'error' });
+      } else {
+        swal('An error occurred during login', { icon: 'error' });
+      }
     }
   };
 
