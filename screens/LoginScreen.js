@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, TextInput, Button, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { Input, Button, Text } from '@rneui/themed';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import swal from 'sweetalert';
@@ -62,12 +63,23 @@ export default function LoginScreen({ navigation }) {
         },
       }).then(token => {
         if (!token) throw new Error("No token provided.");
+
+        // Validate JWT format
+        const jwtPattern = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/;
+        if (!jwtPattern.test(token)) {
+          throw new Error("Invalid token format. Please enter a valid JWT.");
+        }
+
         storedToken = token;
         return axios.post('http://localhost:3000/validate', { token });
       })
         .then(response => processTokenValidation(response, storedToken))
         .catch(error => {
-          swal("Error", error.response.data.message + ` Expired at ${new Date(error.response.data.expiresAt)}`, "error");
+          if (error.response && error.response.data) {
+            swal("Error", error.response.data.message + ` Expired at ${new Date(error.response.data.expiresAt)}`, "error");
+          } else {
+            swal("Error", error.message, "error");
+          }
         });
     } else {
       axios.post('http://localhost:3000/validate', { token: storedToken })
@@ -95,24 +107,27 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <TextInput
-        style={styles.input}
+      <Text h2 style={styles.heading}>Login</Text>
+      <Input
         placeholder="Username"
         onChangeText={setUsername}
         value={username}
         autoCapitalize="none"
+        id='username-input'
+        leftIcon={{ type: 'font-awesome', name: 'user' }}
       />
-      <TextInput
-        style={styles.input}
+      <Input
         placeholder="Password"
         onChangeText={setPassword}
         value={password}
         secureTextEntry
         autoCapitalize="none"
+        id='password-input'
+        leftIcon={{ type: 'font-awesome', name: 'lock' }}
       />
-      <Button title="Login" onPress={handleLogin} />
-      <Button title="Register" onPress={() => navigation.navigate('Register')} />
-      <Button title="Validate Token" onPress={handleTokenInput} />
+      <Button title="Login" onPress={handleLogin} containerStyle={styles.button} />
+      <Button title="Register" onPress={() => navigation.navigate('Register')} type="outline" containerStyle={styles.button} />
+      <Button title="Validate Token" onPress={handleTokenInput} type="clear" titleStyle={styles.validateButton} />
     </View>
   );
 }
@@ -123,11 +138,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 20,
   },
-  input: {
-    height: 40,
-    borderColor: 'gray',
-    borderWidth: 1,
-    marginBottom: 10,
-    paddingHorizontal: 10,
+  heading: {
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  button: {
+    marginTop: 10,
+  },
+  validateButton: {
+    color: 'blue',
+    marginTop: 20,
   },
 });

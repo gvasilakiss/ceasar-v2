@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, TextInput, Button, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { Input, Button, Text } from '@rneui/themed';
 import axios from 'axios';
 import swal from 'sweetalert';
 
@@ -9,28 +10,42 @@ export default function RegisterScreen({ navigation }) {
     const [confirmPassword, setConfirmPassword] = useState('');
 
     const handleRegister = async () => {
+        // Trim the input values
+        const trimmedUsername = username.trim();
+        const trimmedPassword = password.trim();
+        const trimmedConfirmPassword = confirmPassword.trim();
+
         // Check for empty fields
-        if (!username.trim() || !password.trim() || !confirmPassword.trim()) {
+        if (!trimmedUsername || !trimmedPassword || !trimmedConfirmPassword) {
             swal('Please fill in all fields.', { icon: 'error' });
             return;
         }
 
         // Check if password meets the minimum length requirement
-        if (password.length < 6) {
+        if (trimmedPassword.length < 6) {
             swal('Password must be at least 6 characters long.', { icon: 'error' });
             return;
         }
 
-        if (password !== confirmPassword) {
+        // Check if password and confirm password match
+        if (trimmedPassword !== trimmedConfirmPassword) {
             swal('Passwords do not match.', { icon: 'error' });
             return;
         }
 
         try {
-            await axios.post('http://localhost:3000/register', { username, password });
+            // Send a POST request to the server for registration
+            await axios.post('http://localhost:3000/register', { username: trimmedUsername, password: trimmedPassword });
+
+            // Show a success message using SweetAlert
             swal('Registration successful. Please login.', { icon: 'success' })
-                .then((value) => {
-                    // After the swal promise resolves, navigate to the Login screen
+                .then(() => {
+                    // Clear the input fields
+                    setUsername('');
+                    setPassword('');
+                    setConfirmPassword('');
+
+                    // Navigate to the Login screen
                     navigation.navigate('Login');
                 });
         } catch (error) {
@@ -45,30 +60,31 @@ export default function RegisterScreen({ navigation }) {
 
     return (
         <View style={styles.container}>
-            <TextInput
-                style={styles.input}
+            <Text h2 style={styles.heading}>Register</Text>
+            <Input
                 placeholder="Username"
                 onChangeText={setUsername}
                 value={username}
                 autoCapitalize="none"
+                leftIcon={{ type: 'font-awesome', name: 'user' }}
             />
-            <TextInput
-                style={styles.input}
+            <Input
                 placeholder="Password"
                 onChangeText={setPassword}
                 value={password}
                 secureTextEntry
                 autoCapitalize="none"
+                leftIcon={{ type: 'font-awesome', name: 'lock' }}
             />
-            <TextInput
-                style={styles.input}
+            <Input
                 placeholder="Confirm Password"
                 onChangeText={setConfirmPassword}
                 value={confirmPassword}
                 secureTextEntry
                 autoCapitalize="none"
+                leftIcon={{ type: 'font-awesome', name: 'lock' }}
             />
-            <Button title="Register" onPress={handleRegister} />
+            <Button title="Register" onPress={handleRegister} containerStyle={styles.button} />
         </View>
     );
 }
@@ -79,11 +95,11 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         paddingHorizontal: 20,
     },
-    input: {
-        height: 40,
-        borderColor: 'gray',
-        borderWidth: 1,
-        marginBottom: 10,
-        paddingHorizontal: 10,
+    heading: {
+        marginBottom: 20,
+        textAlign: 'center',
+    },
+    button: {
+        marginTop: 10,
     },
 });

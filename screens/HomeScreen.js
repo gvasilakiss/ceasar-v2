@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Button, StyleSheet } from 'react-native';
+import { View, StyleSheet, Image } from 'react-native';
+import { Text, Button, Card } from '@rneui/themed';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import swal from 'sweetalert';
@@ -14,7 +15,7 @@ export default function HomeScreen({ navigation }) {
     const fetchUser = async () => {
       try {
         const storedToken = await AsyncStorage.getItem('token');
-        setToken(storedToken); // Store token in state for display
+        setToken(storedToken);
 
         if (!storedToken) {
           swal('Please log in', { icon: 'warning' });
@@ -53,10 +54,17 @@ export default function HomeScreen({ navigation }) {
 
     fetchUser();
 
-    // Update timer every second
     const timerInterval = setInterval(() => {
       if (tokenExpiration) {
-        setTokenExpiration((prev) => new Date(prev.getTime() - 1000));
+        const currentTime = new Date();
+        const timeLeft = tokenExpiration - currentTime;
+        if (timeLeft < 0) {
+          swal('Token expired', 'Your session has expired. Please log in again.', 'error')
+            .then(() => {
+              AsyncStorage.removeItem('token');
+              navigation.navigate('Login');
+            });
+        }
       }
     }, 1000);
 
@@ -90,18 +98,25 @@ export default function HomeScreen({ navigation }) {
 
   const formatTimeLeft = () => {
     if (!tokenExpiration) return '';
-    const timeLeft = tokenExpiration - new Date();
+    const currentTime = new Date();
+    const timeLeft = tokenExpiration - currentTime;
     if (timeLeft < 0) {
-      swal('Token expired', 'Your session has expired. Please log in again.', 'error')
-        .then(() => {
-          AsyncStorage.removeItem('token');
-          navigation.navigate('Login');
-        });
-      return 'expired';
+      return 'Expired';
     }
-    const minutes = Math.floor((timeLeft / (1000 * 60)) % 60);
-    const seconds = Math.floor((timeLeft / 1000) % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+    return `${minutes}m ${seconds}s`;
+  };
+
+  const renderImage = () => {
+    let imageSrc;
+    if (user.permissions.includes('admin')) {
+      imageSrc = require('../assets/elon.jpg');
+    } else {
+      imageSrc = require('../assets/cat.jpg');
+    }
+
+    return <Image source={imageSrc} style={styles.image} />;
   };
 
   if (loading) {
@@ -119,14 +134,16 @@ export default function HomeScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.timerContainer}>
-        <Text style={styles.timer}>
-          {formatTimeLeft()}
-        </Text>
+        <Text style={styles.timer}>Token Expires in: {formatTimeLeft()}</Text>
       </View>
-      <Text style={styles.welcome}>Welcome, {user.username}!</Text>
-      <Text>Permissions: {user.permissions.join(', ')}</Text>
-      <Button title="Show Token" onPress={showTokenDetails} />
-      <Button title="Logout" onPress={handleLogout} />
+      <Card>
+        <Card.Title>Welcome, {user.username}!</Card.Title>
+        <Card.Divider />
+        <Text>Permissions: {user.permissions.join(', ')}</Text>
+        <Button title="Show Token" onPress={showTokenDetails} containerStyle={styles.button} />
+        <Button title="Logout" onPress={handleLogout} type="outline" containerStyle={styles.button} />
+      </Card>
+      {renderImage()}
     </View>
   );
 }
@@ -136,10 +153,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  welcome: {
-    fontSize: 20,
-    marginBottom: 20,
+    paddingHorizontal: 20,
   },
   timerContainer: {
     position: 'absolute',
@@ -149,5 +163,14 @@ const styles = StyleSheet.create({
   timer: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  button: {
+    marginTop: 10,
+  },
+  image: {
+    width: 200,
+    height: 200,
+    alignSelf: 'center',
+    marginTop: 20,
   },
 });

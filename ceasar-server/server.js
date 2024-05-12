@@ -6,6 +6,8 @@ const rateLimit = require('express-rate-limit');
 const cors = require('cors');
 const Joi = require('joi');
 const crypto = require('crypto');
+const validator = require('validator');
+const xss = require('xss');
 require('dotenv').config();
 
 const app = express();
@@ -24,6 +26,7 @@ const userSchema = new mongoose.Schema({
     password: String,
     permissions: [String],
 });
+
 const User = mongoose.model('User', userSchema);
 
 const loginLimiter = rateLimit({
@@ -36,19 +39,27 @@ const userValidationSchema = Joi.object({
     password: Joi.string().min(6).required()
 });
 
+const sanitizeInput = (input) => {
+    return xss(validator.escape(input));
+};
+
 app.post('/register', async (req, res) => {
     const { error } = userValidationSchema.validate(req.body);
     if (error) return res.status(400).send(error.details[0].message);
 
     const { username, password } = req.body;
     try {
-        const existingUser = await User.findOne({ username });
+        const existingUser = await User.findOne({ username: sanitizeInput(username) });
         if (existingUser) {
             return res.status(400).json({ error: 'Username already exists' });
         }
 
         const hashedPassword = await argon2.hash(password);
-        const newUser = new User({ username, password: hashedPassword, permissions: ['read'] });
+
+        console.log('Hashed password:', hashedPassword)
+        console.log('Sanitized username:', sanitizeInput(username));
+
+        const newUser = new User({ username: sanitizeInput(username), password: hashedPassword, permissions: ['user'] });
         await newUser.save();
 
         res.json({ message: 'User registered successfully' });
@@ -64,13 +75,13 @@ app.post('/login', loginLimiter, async (req, res) => {
 
     const { username, password } = req.body;
     try {
-        const user = await User.findOne({ username });
+        const user = await User.findOne({ username: sanitizeInput(username) });
         if (!user || !(await argon2.verify(user.password, password))) {
             return res.status(401).json({ error: 'Invalid username or password' });
         }
 
-        const token = generateToken(user, process.env.JWT_SECRET);
-        res.json({ token });
+        const token = generateToken(user, process.env.JWT_SECRET); // Generate JWT token
+        res.json({ token, expiresAt: new Date(jwt.decode(token).exp * 1000).toISOString() });
     } catch (error) {
         console.error('Login failed:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -88,6 +99,8 @@ app.post('/validate', async (req, res) => {
     try {
         // Decode and verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        // console.log("Decoded token:", decoded);
 
         // Check if user exists
         const user = await User.findById(decoded.user.id);
