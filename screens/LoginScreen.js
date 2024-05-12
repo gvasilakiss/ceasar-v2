@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, TextInput, Button, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
@@ -7,9 +7,30 @@ import swal from 'sweetalert';
 export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [tokenExpiration, setTokenExpiration] = useState(null);
+
+  useEffect(() => {
+    checkToken();
+  }, []);
+
+  const checkToken = async () => {
+    const token = await AsyncStorage.getItem('token');
+    if (token) {
+      try {
+        const response = await axios.post('http://localhost:3000/validate', { token });
+        if (response.data.valid) {
+          navigation.navigate('Home');
+        } else {
+          swal("Your session has expired. Please log in again.", { icon: "warning" });
+        }
+      } catch (error) {
+        console.error('Token validation failed:', error);
+        swal("Failed to validate session. Please log in again.", { icon: "error" });
+      }
+    }
+  };
 
   const handleLogin = async () => {
-    // Check for empty fields
     if (!username.trim() || !password.trim()) {
       swal('Please fill in all fields.', { icon: 'error' });
       return;
@@ -17,18 +38,58 @@ export default function LoginScreen({ navigation }) {
 
     try {
       const response = await axios.post('http://localhost:3000/login', { username, password });
-      const { token } = response.data;
-      console.log('Login token:', token);
-
+      const { token, expiresAt } = response.data;
       await AsyncStorage.setItem('token', token);
+      setTokenExpiration(new Date(expiresAt));
       navigation.navigate('Home');
     } catch (error) {
       console.error('Login error:', error);
-      if (error.response && error.response.status === 401) {
-        swal('Invalid credentials', { icon: 'error' });
-      } else {
-        swal('An error occurred during login', { icon: 'error' });
-      }
+      swal('Invalid credentials', { icon: 'error' });
+    }
+  };
+
+  const handleTokenInput = async () => {
+    let storedToken = await AsyncStorage.getItem('token');
+
+    if (!storedToken) {
+      swal({
+        title: "Enter Token",
+        text: "Please enter your authentication token:",
+        content: "input",
+        button: {
+          text: "Validate Token",
+          closeModal: false,
+        },
+      }).then(token => {
+        if (!token) throw new Error("No token provided.");
+        storedToken = token;
+        return axios.post('http://localhost:3000/validate', { token });
+      })
+        .then(response => processTokenValidation(response, storedToken))
+        .catch(error => {
+          swal("Error", error.response.data.message + ` Expired at ${new Date(error.response.data.expiresAt)}`, "error");
+        });
+    } else {
+      axios.post('http://localhost:3000/validate', { token: storedToken })
+        .then(response => processTokenValidation(response, storedToken))
+        .catch(error => {
+          swal("Failed to validate session. Please log in again." + error, { icon: "error" });
+          AsyncStorage.removeItem('token');
+        });
+    }
+  };
+
+  const processTokenValidation = (response, token) => {
+    const { valid, expiresAt } = response.data;
+
+    if (valid) {
+      swal("Success", `Token is valid and stored successfully! Expires at: ${new Date(expiresAt)}`, "success");
+      // AsyncStorage.setItem('token', token);
+      // setTokenExpiration(new Date(expiresAt));
+      // navigation.navigate('Home');
+    } else {
+      swal("Error", `Token has expired at ${new Date(expiresAt)}`, "error");
+      // AsyncStorage.removeItem('token');
     }
   };
 
@@ -51,6 +112,7 @@ export default function LoginScreen({ navigation }) {
       />
       <Button title="Login" onPress={handleLogin} />
       <Button title="Register" onPress={() => navigation.navigate('Register')} />
+      <Button title="Validate Token" onPress={handleTokenInput} />
     </View>
   );
 }

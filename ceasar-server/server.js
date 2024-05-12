@@ -77,18 +77,70 @@ app.post('/login', loginLimiter, async (req, res) => {
     }
 });
 
-app.post('/validate', (req, res) => {
+app.post('/validate', async (req, res) => {
     const { token } = req.body;
 
+    // Check if token is provided
+    if (!token) {
+        return res.status(400).json({ valid: false, message: 'Token is required' });
+    }
+
     try {
+        // Decode and verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        res.json({ valid: true, user: decoded.user });
+
+        // Check if user exists
+        const user = await User.findById(decoded.user.id);
+        if (!user) {
+            return res.status(401).json({ valid: false, message: 'User not found' });
+        }
+
+        // Reconstruct expected signature to verify it
+        const expectedSignature = crypto
+            .createHmac('sha3-512', process.env.JWT_SECRET)
+            .update(JSON.stringify({ ...decoded, signature: undefined }))
+            .digest('hex');
+
+        // Validate signature
+        if (decoded.signature !== expectedSignature) {
+            return res.status(401).json({ valid: false, message: 'Token signature is invalid' });
+        }
+
+        // Check if the token has expired
+        const currentTime = Date.now();
+        const tokenExpiresAt = decoded.exp * 1000; // Convert expiration time from seconds to milliseconds
+        if (currentTime >= tokenExpiresAt) {
+            return res.status(401).json({
+                valid: false,
+                message: 'Token has expired',
+                expiresAt: new Date(tokenExpiresAt).toISOString()
+            });
+        }
+
+        // Return successful validation
+        res.json({
+            valid: true,
+            message: 'Token is valid',
+            user: decoded.user,
+            expiresAt: new Date(tokenExpiresAt).toISOString()
+        });
     } catch (error) {
-        res.status(401).json({ valid: false, error: 'Invalid token' });
+        if (error instanceof jwt.TokenExpiredError) {
+            return res.status(401).json({
+                valid: false,
+                message: 'Token has expired',
+                expiresAt: new Date(error.expiredAt).toISOString()
+            });
+        }
+        console.error('Token validation failed:', error);
+        res.status(401).json({ valid: false, message: 'Invalid token' });
     }
 });
 
 function generateToken(user, secretKey) {
+    const issuedAt = Math.floor(Date.now() / 1000); // Current time in seconds since epoch
+    const expiresIn = 10 * 60; // Token expires in 10 minutes
+
     const payload = {
         user: {
             id: user._id,
@@ -96,14 +148,15 @@ function generateToken(user, secretKey) {
             permissions: user.permissions,
         },
         system: 'Authentication System',
-        issuedAt: Date.now(),
+        iat: issuedAt,
+        exp: issuedAt + expiresIn
     };
 
     const signature = crypto.createHmac('sha3-512', secretKey)
         .update(JSON.stringify(payload))
         .digest('hex');
 
-    return jwt.sign({ ...payload, signature }, secretKey, { expiresIn: '1m' });
+    return jwt.sign({ ...payload, signature }, secretKey);
 }
 
 app.listen(3000, () => {
