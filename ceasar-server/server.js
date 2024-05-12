@@ -39,6 +39,7 @@ const userValidationSchema = Joi.object({
     password: Joi.string().min(6).required()
 });
 
+// Function to sanitize user input
 const sanitizeInput = (input) => {
     return xss(validator.escape(input));
 };
