@@ -1,3 +1,4 @@
+// Import required modules
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const argon2 = require('argon2');
@@ -10,30 +11,40 @@ const validator = require('validator');
 const xss = require('xss');
 require('dotenv').config();
 
+// Create an Express application
 const app = express();
+
+// Middleware to parse JSON request bodies
 app.use(express.json());
+
+// Enable CORS for specific origin and allow credentials
 app.use(cors({
     origin: 'http://localhost:8081',
     credentials: true,
 }));
 
+// Connect to MongoDB Atlas
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log("Connected to MongoDB Atlas..."))
     .catch(err => console.error("Could not connect to MongoDB Atlas...", err));
 
+// Define user schema
 const userSchema = new mongoose.Schema({
     username: String,
     password: String,
     permissions: [String],
 });
 
+// Create User model based on the user schema
 const User = mongoose.model('User', userSchema);
 
+// Create a rate limiter for login attempts
 const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Maximum 100 requests per window
 });
 
+// Define user validation schema using Joi
 const userValidationSchema = Joi.object({
     username: Joi.string().alphanum().min(3).max(30).required(),
     password: Joi.string().min(6).required()
@@ -44,22 +55,27 @@ const sanitizeInput = (input) => {
     return xss(validator.escape(input));
 };
 
+// Register route
 app.post('/register', async (req, res) => {
+    // Validate user input
     const { error } = userValidationSchema.validate(req.body);
     if (error) return res.status(400).send(error.details[0].message);
 
     const { username, password } = req.body;
     try {
+        // Check if username already exists
         const existingUser = await User.findOne({ username: sanitizeInput(username) });
         if (existingUser) {
             return res.status(400).json({ error: 'Username already exists' });
         }
 
+        // Hash the password using Argon2
         const hashedPassword = await argon2.hash(password);
 
         console.log('Hashed password:', hashedPassword)
         console.log('Sanitized username:', sanitizeInput(username));
 
+        // Create a new user with the hashed password and save it to the database
         const newUser = new User({ username: sanitizeInput(username), password: hashedPassword, permissions: ['user'] });
         await newUser.save();
 
@@ -70,18 +86,23 @@ app.post('/register', async (req, res) => {
     }
 });
 
+// Login route
 app.post('/login', loginLimiter, async (req, res) => {
+    // Validate user input
     const { error } = userValidationSchema.validate(req.body);
     if (error) return res.status(400).send(error.details[0].message);
 
     const { username, password } = req.body;
     try {
+        // Find user by username
         const user = await User.findOne({ username: sanitizeInput(username) });
+        // Check if user exists and password is correct
         if (!user || !(await argon2.verify(user.password, password))) {
             return res.status(401).json({ error: 'Invalid username or password' });
         }
 
-        const token = generateToken(user, process.env.JWT_SECRET); // Generate JWT token
+        // Generate JWT token
+        const token = generateToken(user, process.env.JWT_SECRET);
         res.json({ token, expiresAt: new Date(jwt.decode(token).exp * 1000).toISOString() });
     } catch (error) {
         console.error('Login failed:', error);
@@ -89,6 +110,7 @@ app.post('/login', loginLimiter, async (req, res) => {
     }
 });
 
+// Validate token route
 app.post('/validate', async (req, res) => {
     const { token } = req.body;
 
@@ -100,8 +122,6 @@ app.post('/validate', async (req, res) => {
     try {
         // Decode and verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-        // console.log("Decoded token:", decoded);
 
         // Check if user exists
         const user = await User.findById(decoded.user.id);
@@ -151,8 +171,9 @@ app.post('/validate', async (req, res) => {
     }
 });
 
+// Function to generate JWT token
 function generateToken(user, secretKey) {
-    const issuedAt = Math.floor(Date.now() / 1000); // Current time in seconds since epoch
+    const issuedAt = Math.floor(Date.now() / 1000); // Current time in seconds since Unix epoch
     const expiresIn = 10 * 60; // Token expires in 10 minutes
 
     const payload = {
@@ -161,7 +182,7 @@ function generateToken(user, secretKey) {
             username: user.username,
             permissions: user.permissions,
         },
-        system: 'Authentication System',
+        system: 'CEASAR-AUTH v2.0',
         iat: issuedAt,
         exp: issuedAt + expiresIn
     };
@@ -173,6 +194,7 @@ function generateToken(user, secretKey) {
     return jwt.sign({ ...payload, signature }, secretKey);
 }
 
+// Start the server
 app.listen(3000, () => {
     console.log('Server is running on port 3000');
 });

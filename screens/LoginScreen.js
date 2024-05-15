@@ -6,22 +6,28 @@ import axios from 'axios';
 import swal from 'sweetalert';
 
 export default function LoginScreen({ navigation }) {
+  // State variables for form inputs and token expiration
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [tokenExpiration, setTokenExpiration] = useState(null);
 
   useEffect(() => {
+    // Check if a token exists on component mount
     checkToken();
   }, []);
 
   const checkToken = async () => {
+    // Retrieve the token from AsyncStorage
     const token = await AsyncStorage.getItem('token');
     if (token) {
       try {
+        // Validate the token with the server
         const response = await axios.post('http://localhost:3000/validate', { token });
         if (response.data.valid) {
+          // If the token is valid, navigate to the Home screen
           navigation.navigate('Home');
         } else {
+          // If the token is invalid, show a warning message
           swal("Your session has expired. Please log in again.", { icon: "warning" });
         }
       } catch (error) {
@@ -32,16 +38,21 @@ export default function LoginScreen({ navigation }) {
   };
 
   const handleLogin = async () => {
+    // Check if username and password fields are filled
     if (!username.trim() || !password.trim()) {
       swal('Please fill in all fields.', { icon: 'error' });
       return;
     }
 
     try {
+      // Send a POST request to the server for login
       const response = await axios.post('http://localhost:3000/login', { username, password });
       const { token, expiresAt } = response.data;
+      // Store the token in AsyncStorage
       await AsyncStorage.setItem('token', token);
+      // Set the token expiration date
       setTokenExpiration(new Date(expiresAt));
+      // Navigate to the Home screen
       navigation.navigate('Home');
     } catch (error) {
       console.error('Login error:', error);
@@ -53,6 +64,7 @@ export default function LoginScreen({ navigation }) {
     let storedToken = await AsyncStorage.getItem('token');
 
     if (!storedToken) {
+      // If no token is stored, prompt the user to enter a token
       swal({
         title: "Enter Token",
         text: "Please enter your authentication token:",
@@ -82,6 +94,7 @@ export default function LoginScreen({ navigation }) {
           }
         });
     } else {
+      // If a token is stored, validate it with the server
       axios.post('http://localhost:3000/validate', { token: storedToken })
         .then(response => processTokenValidation(response, storedToken))
         .catch(error => {
@@ -95,11 +108,13 @@ export default function LoginScreen({ navigation }) {
     const { valid, expiresAt } = response.data;
 
     if (valid) {
+      // If the token is valid, show a success message
       swal("Success", `Token is valid and stored successfully! Expires at: ${new Date(expiresAt)}`, "success");
       // AsyncStorage.setItem('token', token);
       // setTokenExpiration(new Date(expiresAt));
       // navigation.navigate('Home');
     } else {
+      // If the token is invalid, show an error message
       swal("Error", `Token has expired at ${new Date(expiresAt)}`, "error");
       // AsyncStorage.removeItem('token');
     }
@@ -132,6 +147,7 @@ export default function LoginScreen({ navigation }) {
   );
 }
 
+// Styles for the LoginScreen component
 const styles = StyleSheet.create({
   container: {
     flex: 1,

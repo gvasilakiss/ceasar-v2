@@ -5,12 +5,13 @@ import axios from 'axios';
 import swal from 'sweetalert';
 
 export default function RegisterScreen({ navigation }) {
+    // State variables for form inputs
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
 
     const handleRegister = async () => {
-        // Trim the input values
+        // Trim the input values to remove leading/trailing whitespace
         const trimmedUsername = username.trim();
         const trimmedPassword = password.trim();
         const trimmedConfirmPassword = confirmPassword.trim();
@@ -89,6 +90,7 @@ export default function RegisterScreen({ navigation }) {
     );
 }
 
+// Styles for the RegisterScreen component
 const styles = StyleSheet.create({
     container: {
         flex: 1,
