@@ -108,10 +108,13 @@ export default function LoginScreen({ navigation }) {
     const { valid, expiresAt } = response.data;
 
     if (valid) {
-      // If the token is valid, show a success message and login user
+      // If the token is valid and not expired, show a success message and store the token
       swal("Success", `Token is valid and stored successfully! Expires at: ${new Date(expiresAt)}`, "success");
+      // Store the token in AsyncStorage
       AsyncStorage.setItem('token', token);
+      // Set the token expiration date in state
       setTokenExpiration(new Date(expiresAt));
+      // Navigate to the Home screen after successful validation
       navigation.navigate('Home');
     } else {
       // If the token is invalid, show an error message
