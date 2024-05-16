@@ -52,6 +52,8 @@ export default function LoginScreen({ navigation }) {
       await AsyncStorage.setItem('token', token);
       // Set the token expiration date
       setTokenExpiration(new Date(expiresAt));
+      // Show a success message on successful login
+      swal('Login successful!', { icon: 'success' });
       // Navigate to the Home screen
       navigation.navigate('Home');
     } catch (error) {
@@ -81,7 +83,7 @@ export default function LoginScreen({ navigation }) {
         if (!jwtPattern.test(token)) {
           throw new Error("Invalid token format. Please enter a valid JWT.");
         }
-
+        //  Store the token in a variable and send it to the server for validation
         storedToken = token;
         return axios.post('http://localhost:3000/validate', { token });
       })
